@@ -80,7 +80,7 @@ tasks.jacocoTestReport {
 
 sonar {
     properties {
-        property("sonar.projectKey", "advprog-2026-B14-project_[NAMA REPO MASING2]")
+        property("sonar.projectKey", "advprog-2026-B14-project_yomu-autentikasi")
         property("sonar.organization", "advprog-2026-b14-project")
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
