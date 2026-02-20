@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - staging
+      - ci-cd
   pull_request:
     branches:
       - main
       - staging
+      - ci-cd
     types: [opened, synchronize, reopened]
 
 jobs:
