@@ -1,0 +1,95 @@
+package id.ac.ui.cs.advprog.yomuauth.service;
+
+import id.ac.ui.cs.advprog.yomuauth.dto.RegisterRequest;
+import id.ac.ui.cs.advprog.yomuauth.dto.LoginRequest;
+import id.ac.ui.cs.advprog.yomuauth.model.User;
+import id.ac.ui.cs.advprog.yomuauth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Value("${supabase.url}")
+    private String supabaseUrl;
+
+    @Value("${supabase.anon.key}")
+    private String supabaseKey;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    public User register(RegisterRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("apikey", supabaseKey);
+        headers.set("Authorization", "Bearer " + supabaseKey);
+
+        Map<String, Object> supabaseBody = new HashMap<>();
+        supabaseBody.put("email", request.getEmail());
+        supabaseBody.put("password", request.getPassword());
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("full_name", request.getFullName());
+        metadata.put("name", request.getFullName());
+        supabaseBody.put("data", metadata);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(supabaseBody, headers);
+
+        try {
+            String url = supabaseUrl + "/auth/v1/signup";
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> userMap = (Map<String, Object>) response.getBody().get("user");
+                if (userMap == null) {
+                    throw new RuntimeException("Supabase tidak mengembalikan data user. Cek apakah email sudah terdaftar.");
+                }
+                String supabaseId = (String) userMap.get("id");
+
+                User user = new User();
+                user.setId(UUID.fromString(supabaseId));
+                user.setEmail(request.getEmail());
+                user.setFullName(request.getFullName());
+                user.setRole("USER");
+
+                return userRepository.save(user);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Gagal daftar ke Supabase: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public Map<String, Object> login(LoginRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("apikey", supabaseKey);
+        headers.set("Authorization", "Bearer " + supabaseKey);
+
+        Map<String, String> body = new HashMap<>();
+        body.put("email", request.getEmail());
+        body.put("password", request.getPassword());
+
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+
+        String url = supabaseUrl + "/auth/v1/token?grant_type=password";
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            throw new RuntimeException("Login gagal: Email atau password salah.");
+        }
+    }
+}
