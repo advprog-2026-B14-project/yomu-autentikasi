@@ -92,4 +92,26 @@ public class AuthService {
             throw new RuntimeException("Login gagal: Email atau password salah.");
         }
     }
+
+    public User syncExternalUser(Map<String, Object> supabaseUser) {
+        String supabaseId = (String) supabaseUser.get("id");
+        String email = (String) supabaseUser.get("email");
+
+        Map<String, Object> metadata = (Map<String, Object>) supabaseUser.get("user_metadata");
+        String fullName = (String) metadata.get("full_name");
+
+        return userRepository.findByEmail(email)
+                .map(existingUser -> {
+                    existingUser.setFullName(fullName);
+                    return userRepository.save(existingUser);
+                })
+                .orElseGet(() -> {
+                    User newUser = new User();
+                    newUser.setId(UUID.fromString(supabaseId));
+                    newUser.setEmail(email);
+                    newUser.setFullName(fullName);
+                    newUser.setRole("USER");
+                    return userRepository.save(newUser);
+                });
+    }
 }
