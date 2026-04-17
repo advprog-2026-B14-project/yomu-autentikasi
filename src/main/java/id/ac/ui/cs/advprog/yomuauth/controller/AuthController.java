@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.yomuauth.controller;
 
 import id.ac.ui.cs.advprog.yomuauth.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.LoginRequest;
+import id.ac.ui.cs.advprog.yomuauth.dto.UpdateProfileRequest;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
 import id.ac.ui.cs.advprog.yomuauth.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")

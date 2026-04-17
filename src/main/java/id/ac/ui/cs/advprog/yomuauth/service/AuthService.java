@@ -40,7 +40,7 @@ public class AuthService {
 
         Map<String, String> metadata = new HashMap<>();
         metadata.put("full_name", request.getFullName());
-        metadata.put("name", request.getFullName());
+        metadata.put("username", request.getUsername());
         supabaseBody.put("data", metadata);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(supabaseBody, headers);
@@ -60,6 +60,7 @@ public class AuthService {
                 user.setId(UUID.fromString(supabaseId));
                 user.setEmail(request.getEmail());
                 user.setFullName(request.getFullName());
+                user.setUsername(request.getUsername());
                 user.setRole("USER");
 
                 return userRepository.save(user);
@@ -77,8 +78,15 @@ public class AuthService {
         headers.set("apikey", supabaseKey);
         headers.set("Authorization", "Bearer " + supabaseKey);
 
+        String emailToUse = request.getIdentifier();
+        if (!emailToUse.contains("@")) {
+            User user = userRepository.findByUsername(emailToUse)
+                    .orElseThrow(() -> new RuntimeException("Login gagal: Username tidak ditemukan."));
+            emailToUse = user.getEmail();
+        }
+
         Map<String, String> body = new HashMap<>();
-        body.put("email", request.getEmail());
+        body.put("email", emailToUse);
         body.put("password", request.getPassword());
 
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
@@ -89,7 +97,7 @@ public class AuthService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             return response.getBody();
         } catch (Exception e) {
-            throw new RuntimeException("Login gagal: Email atau password salah.");
+            throw new RuntimeException("Login gagal: Email/Username atau password salah.");
         }
     }
 
@@ -99,10 +107,12 @@ public class AuthService {
 
         Map<String, Object> metadata = (Map<String, Object>) supabaseUser.get("user_metadata");
         String fullName = (String) metadata.get("full_name");
+        String username = (String) metadata.get("username");
 
         return userRepository.findByEmail(email)
                 .map(existingUser -> {
                     existingUser.setFullName(fullName);
+                    if (username != null) existingUser.setUsername(username);
                     return userRepository.save(existingUser);
                 })
                 .orElseGet(() -> {
@@ -110,6 +120,7 @@ public class AuthService {
                     newUser.setId(UUID.fromString(supabaseId));
                     newUser.setEmail(email);
                     newUser.setFullName(fullName);
+                    newUser.setUsername(username);
                     newUser.setRole("USER");
                     return userRepository.save(newUser);
                 });
