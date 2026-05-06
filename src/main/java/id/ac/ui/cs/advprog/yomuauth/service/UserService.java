@@ -33,4 +33,24 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
     }
+
+    public void deleteUser(UUID id) {
+        userRepository.deleteById(id);
+    }
+
+    public User updateUserRole(UUID id, String role) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+        if (!role.equals("ADMIN") && !role.equals("USER")) {
+            throw new RuntimeException("Role tidak valid. Gunakan ADMIN atau USER");
+        }
+
+        user.setRole(role);
+        return userRepository.save(user);
+    }
+
+    public java.util.List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
 }

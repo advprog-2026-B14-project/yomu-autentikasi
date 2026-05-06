@@ -125,4 +125,52 @@ public class AuthService {
                     return userRepository.save(newUser);
                 });
     }
+
+    @Value("${supabase.service.key}")
+    private String supabaseServiceKey;
+
+    public User verifyTokenAndGetUser(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("apikey", supabaseServiceKey);
+        headers.set("Authorization", "Bearer " + token);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    supabaseUrl + "/auth/v1/user",
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String supabaseId = (String) response.getBody().get("id");
+                return userRepository.findById(UUID.fromString(supabaseId))
+                        .orElseThrow(() -> new RuntimeException("User tidak ditemukan di DB lokal"));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Token tidak valid");
+        }
+        throw new RuntimeException("Token tidak valid");
+    }
+
+    public void deleteUserFromSupabase(String supabaseId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("apikey", supabaseServiceKey);
+        headers.set("Authorization", "Bearer " + supabaseServiceKey);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            restTemplate.exchange(
+                    supabaseUrl + "/auth/v1/admin/users/" + supabaseId,
+                    HttpMethod.DELETE,
+                    entity,
+                    Map.class
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal hapus user dari Supabase: " + e.getMessage());
+        }
+    }
 }
