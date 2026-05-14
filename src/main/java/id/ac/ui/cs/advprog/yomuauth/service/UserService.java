@@ -4,6 +4,8 @@ import id.ac.ui.cs.advprog.yomuauth.dto.UpdateProfileRequest;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
 import id.ac.ui.cs.advprog.yomuauth.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -57,7 +59,7 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public java.util.List<User> getAllUsers() {
-        return userRepository.findAll();
+    public Page<User> getAllUsers(int page, int size) {
+        return userRepository.findAll(PageRequest.of(page, size));
     }
 }
