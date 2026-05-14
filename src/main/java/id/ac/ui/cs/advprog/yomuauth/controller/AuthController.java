@@ -9,8 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
+import jakarta.servlet.http.HttpServletRequest;
+
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import jakarta.validation.Valid;
 
 @RestController
@@ -18,6 +24,16 @@ import jakarta.validation.Valid;
 public class AuthController {
     @Autowired
     private AuthService authService;
+
+    private final ConcurrentHashMap<String, Bucket> loginBuckets = new ConcurrentHashMap<>();
+
+    private Bucket createNewBucket() {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(5)
+                .refillGreedy(5, Duration.ofMinutes(1))
+                .build();
+        return Bucket.builder().addLimit(limit).build();
+    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
@@ -30,7 +46,14 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        Bucket bucket = loginBuckets.computeIfAbsent(ip, k -> createNewBucket());
+
+        if (!bucket.tryConsume(1)) {
+            return ResponseEntity.status(429).body("Terlalu banyak percobaan login. Silakan coba lagi nanti.");
+        }
+
         try {
             Map<String, Object> response = authService.login(request);
             return ResponseEntity.ok(response);
