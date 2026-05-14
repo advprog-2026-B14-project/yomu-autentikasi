@@ -1,6 +1,7 @@
 package id.ac.ui.cs.advprog.yomuauth.controller;
 
 import id.ac.ui.cs.advprog.yomuauth.dto.UpdateProfileRequest;
+import id.ac.ui.cs.advprog.yomuauth.dto.UserResponse;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
 import id.ac.ui.cs.advprog.yomuauth.service.AuthService;
 import id.ac.ui.cs.advprog.yomuauth.service.UserService;
@@ -40,7 +41,7 @@ public class UserController {
             }
             
             User user = userService.getUserById(id);
-            return ResponseEntity.ok(user);
+            return ResponseEntity.ok(new UserResponse(user));
         } catch (RuntimeException e) {
             if (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ditemukan");
@@ -61,7 +62,7 @@ public class UserController {
             }
 
             User updatedUser = userService.updateProfile(id, request);
-            return ResponseEntity.ok(updatedUser);
+            return ResponseEntity.ok(new UserResponse(updatedUser));
         } catch (RuntimeException e) {
             if (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ditemukan");

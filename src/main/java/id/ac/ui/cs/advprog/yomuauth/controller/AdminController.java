@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.yomuauth.controller;
 
+import id.ac.ui.cs.advprog.yomuauth.dto.UserResponse;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
 import id.ac.ui.cs.advprog.yomuauth.service.AuthService;
 import id.ac.ui.cs.advprog.yomuauth.service.UserService;
@@ -24,10 +25,11 @@ public class AdminController {
     private AuthService authService;
 
     @GetMapping("/users")
-    public ResponseEntity<Page<User>> getAllUsers(
+    public ResponseEntity<Page<UserResponse>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(userService.getAllUsers(page, size));
+        Page<UserResponse> responsePage = userService.getAllUsers(page, size).map(UserResponse::new);
+        return ResponseEntity.ok(responsePage);
     }
 
     @DeleteMapping("/users/{id}")
@@ -46,7 +48,7 @@ public class AdminController {
         try {
             String role = body.get("role");
             User updated = userService.updateUserRole(id, role);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(new UserResponse(updated));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
