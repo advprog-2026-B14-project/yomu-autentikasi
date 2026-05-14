@@ -81,7 +81,7 @@ public class AuthService {
         String emailToUse = request.getIdentifier();
         if (!emailToUse.contains("@")) {
             User user = userRepository.findByUsername(emailToUse)
-                    .orElseThrow(() -> new RuntimeException("Login gagal: Username tidak ditemukan."));
+                    .orElseThrow(() -> new RuntimeException("Login gagal: Kredensial tidak valid."));
             emailToUse = user.getEmail();
         }
 
@@ -97,7 +97,7 @@ public class AuthService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             return response.getBody();
         } catch (Exception e) {
-            throw new RuntimeException("Login gagal: Email/Username atau password salah.");
+            throw new RuntimeException("Login gagal: Kredensial tidak valid.");
         }
     }
 
