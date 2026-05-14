@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class AuthService {
 
@@ -27,6 +30,8 @@ public class AuthService {
     private String supabaseKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     public User register(RegisterRequest request) {
         HttpHeaders headers = new HttpHeaders();
@@ -51,9 +56,17 @@ public class AuthService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> userMap = (Map<String, Object>) response.getBody().get("user");
+
                 if (userMap == null) {
-                    throw new RuntimeException("Supabase tidak mengembalikan data user. Cek apakah email sudah terdaftar.");
+                    logger.warn(
+                            "Registrasi gagal karena userMap null untuk email: {}",
+                            request.getEmail()
+                    );
+                    throw new RuntimeException(
+                            "Registrasi gagal. Email mungkin sudah terdaftar."
+                    );
                 }
+
                 String supabaseId = (String) userMap.get("id");
 
                 User user = new User();
@@ -63,13 +76,27 @@ public class AuthService {
                 user.setUsername(request.getUsername());
                 user.setRole("USER");
 
+                logger.info(
+                        "User berhasil registrasi dengan email: {}",
+                        request.getEmail()
+                );
+
                 return userRepository.save(user);
             }
+
+            logger.error(
+                    "Respons tidak valid dari Supabase saat registrasi email: {}",
+                    request.getEmail()
+            );
+
+            throw new RuntimeException(
+                    "Registrasi gagal: respons tidak valid dari Supabase"
+            );
+
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error saat registrasi user", e);
             throw new RuntimeException("Gagal daftar ke Supabase: " + e.getMessage());
         }
-        return null;
     }
 
     public Map<String, Object> login(LoginRequest request) {

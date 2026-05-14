@@ -23,6 +23,11 @@ public class UserService {
         }
 
         if (request.getUsername() != null) {
+            userRepository.findByUsername(request.getUsername()).ifPresent(existingUser -> {
+                if (!existingUser.getId().equals(id)) {
+                    throw new RuntimeException("Username sudah dipakai");
+                }
+            });
             user.setUsername(request.getUsername());
         }
 
@@ -35,6 +40,8 @@ public class UserService {
     }
 
     public void deleteUser(UUID id) {
+        userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
         userRepository.deleteById(id);
     }
 
