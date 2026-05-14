@@ -38,14 +38,4 @@ public class AuthController {
             return ResponseEntity.status(401).body(e.getMessage());
         }
     }
-
-    @PostMapping("/sso-sync")
-    public ResponseEntity<?> ssoSync(@RequestBody Map<String, Object> supabaseUser) {
-        try {
-            User syncedUser = authService.syncExternalUser(supabaseUser);
-            return ResponseEntity.ok(syncedUser);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Gagal sinkronisasi user SSO: " + e.getMessage());
-        }
-    }
 }

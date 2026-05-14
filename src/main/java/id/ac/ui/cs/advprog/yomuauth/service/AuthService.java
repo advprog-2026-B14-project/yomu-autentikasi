@@ -101,31 +101,6 @@ public class AuthService {
         }
     }
 
-    public User syncExternalUser(Map<String, Object> supabaseUser) {
-        String supabaseId = (String) supabaseUser.get("id");
-        String email = (String) supabaseUser.get("email");
-
-        Map<String, Object> metadata = (Map<String, Object>) supabaseUser.get("user_metadata");
-        String fullName = (String) metadata.get("full_name");
-        String username = (String) metadata.get("username");
-
-        return userRepository.findByEmail(email)
-                .map(existingUser -> {
-                    existingUser.setFullName(fullName);
-                    if (username != null) existingUser.setUsername(username);
-                    return userRepository.save(existingUser);
-                })
-                .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setId(UUID.fromString(supabaseId));
-                    newUser.setEmail(email);
-                    newUser.setFullName(fullName);
-                    newUser.setUsername(username);
-                    newUser.setRole("USER");
-                    return userRepository.save(newUser);
-                });
-    }
-
     @Value("${supabase.service.key}")
     private String supabaseServiceKey;
 
