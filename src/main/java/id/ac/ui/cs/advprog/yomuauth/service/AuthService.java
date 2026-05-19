@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -157,7 +158,7 @@ public class AuthService {
         throw new RuntimeException("Token tidak valid");
     }
 
-    public void deleteUserFromSupabase(String supabaseId) {
+    public void deleteUser(UUID id) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("apikey", supabaseServiceKey);
         headers.set("Authorization", "Bearer " + supabaseServiceKey);
@@ -166,13 +167,21 @@ public class AuthService {
 
         try {
             restTemplate.exchange(
-                    supabaseUrl + "/auth/v1/admin/users/" + supabaseId,
+                    supabaseUrl + "/auth/v1/admin/users/" + id.toString(),
                     HttpMethod.DELETE,
                     entity,
                     Map.class
             );
         } catch (Exception e) {
             throw new RuntimeException("Gagal hapus user dari Supabase: " + e.getMessage());
+        }
+
+        try {
+            if (userRepository.existsById(id)) {
+                userRepository.deleteById(id);
+            }
+        } catch (Exception ignored) {
+            // Abaikan jika ternyata baris sudah terhapus oleh trigger
         }
     }
 

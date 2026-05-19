@@ -115,9 +115,7 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Password salah");
             }
 
-            authService.deleteUserFromSupabase(currentUser.getId().toString());
-
-            userService.deleteUser(currentUser.getId());
+            authService.deleteUser(currentUser.getId());
 
             return ResponseEntity.ok(Map.of("message", "Akun berhasil dihapus"));
         } catch (RuntimeException e) {

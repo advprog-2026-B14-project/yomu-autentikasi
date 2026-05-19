@@ -35,8 +35,7 @@ public class AdminController {
     @DeleteMapping("/users/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable UUID id) {
         try {
-            authService.deleteUserFromSupabase(id.toString());
-            userService.deleteUser(id);
+            authService.deleteUser(id);
             return ResponseEntity.ok("User berhasil dihapus");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
