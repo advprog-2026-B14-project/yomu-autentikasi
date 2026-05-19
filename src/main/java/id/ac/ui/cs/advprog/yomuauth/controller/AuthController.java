@@ -61,4 +61,20 @@ public class AuthController {
             return ResponseEntity.status(401).body(e.getMessage());
         }
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(400).body("Token tidak ditemukan");
+            }
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+            authService.logout(token);
+            return ResponseEntity.ok(Map.of("message", "Logout berhasil"));
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(e.getMessage());
+        }
+    }
 }

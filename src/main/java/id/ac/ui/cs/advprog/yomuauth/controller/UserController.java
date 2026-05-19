@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.yomuauth.controller;
 
+import id.ac.ui.cs.advprog.yomuauth.dto.ChangePasswordRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.UpdateProfileRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.UserResponse;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
@@ -11,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import jakarta.validation.Valid;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/user")
@@ -66,6 +69,28 @@ public class UserController {
         } catch (RuntimeException e) {
             if (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ditemukan");
+            }
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PatchMapping("/password")
+    public ResponseEntity<?> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            User currentUser = getAuthenticatedUser(authHeader);
+            String token = authHeader.substring(7);
+            
+            authService.changePassword(currentUser, request.getOldPassword(), request.getNewPassword(), token);
+            
+            return ResponseEntity.ok(Map.of("message", "Password berhasil diubah"));
+        } catch (RuntimeException e) {
+            if (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ditemukan");
+            }
+            if (e.getMessage().equals("Password lama salah")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
             }
             return ResponseEntity.badRequest().body(e.getMessage());
         }

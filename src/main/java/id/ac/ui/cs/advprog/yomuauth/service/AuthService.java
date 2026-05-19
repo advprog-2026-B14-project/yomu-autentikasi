@@ -175,4 +175,51 @@ public class AuthService {
             throw new RuntimeException("Gagal hapus user dari Supabase: " + e.getMessage());
         }
     }
+
+    public void logout(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("apikey", supabaseKey);
+        headers.set("Authorization", "Bearer " + token);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        String url = supabaseUrl + "/auth/v1/logout";
+
+        try {
+            restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Logout gagal: " + e.getMessage());
+        }
+    }
+
+    public void changePassword(User user, String oldPassword, String newPassword, String token) {
+        LoginRequest loginReq = new LoginRequest();
+        loginReq.setIdentifier(user.getEmail());
+        loginReq.setPassword(oldPassword);
+
+        try {
+            login(loginReq);
+        } catch (Exception e) {
+            throw new RuntimeException("Password lama salah");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("apikey", supabaseKey);
+        headers.set("Authorization", "Bearer " + token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, String> body = new HashMap<>();
+        body.put("password", newPassword);
+
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+        String url = supabaseUrl + "/auth/v1/user";
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Gagal mengubah password di Supabase");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal mengubah password: " + e.getMessage());
+        }
+    }
 }
