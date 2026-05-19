@@ -57,6 +57,8 @@ public class AuthController {
         try {
             Map<String, Object> response = authService.login(request);
             return ResponseEntity.ok(response);
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            return ResponseEntity.status(504).body("Server Supabase sedang gangguan/timeout: " + e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage());
         }
