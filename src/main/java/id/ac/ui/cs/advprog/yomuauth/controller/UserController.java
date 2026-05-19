@@ -1,6 +1,8 @@
 package id.ac.ui.cs.advprog.yomuauth.controller;
 
 import id.ac.ui.cs.advprog.yomuauth.dto.ChangePasswordRequest;
+import id.ac.ui.cs.advprog.yomuauth.dto.DeleteAccountRequest;
+import id.ac.ui.cs.advprog.yomuauth.dto.LoginRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.UpdateProfileRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.UserResponse;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
@@ -39,10 +41,10 @@ public class UserController {
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             User currentUser = getAuthenticatedUser(authHeader);
-            if (!currentUser.getId().equals(id)) {
+            if (!currentUser.getId().equals(id) && !"ADMIN".equals(currentUser.getRole())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Akses ditolak: Anda bukan pemilik profil ini");
             }
-            
+
             User user = userService.getUserById(id);
             return ResponseEntity.ok(new UserResponse(user));
         } catch (RuntimeException e) {
@@ -55,13 +57,14 @@ public class UserController {
 
     @PatchMapping("/profile/{id}")
     public ResponseEntity<?> updateProfile(
-            @PathVariable UUID id, 
+            @PathVariable UUID id,
             @RequestBody UpdateProfileRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             User currentUser = getAuthenticatedUser(authHeader);
             if (!currentUser.getId().equals(id)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Akses ditolak: Anda tidak dapat mengubah profil pengguna lain");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Akses ditolak: Anda tidak dapat mengubah profil pengguna lain");
             }
 
             User updatedUser = userService.updateProfile(id, request);
@@ -81,9 +84,9 @@ public class UserController {
         try {
             User currentUser = getAuthenticatedUser(authHeader);
             String token = authHeader.substring(7);
-            
+
             authService.changePassword(currentUser, request.getOldPassword(), request.getNewPassword(), token);
-            
+
             return ResponseEntity.ok(Map.of("message", "Password berhasil diubah"));
         } catch (RuntimeException e) {
             if (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid")) {
@@ -91,6 +94,36 @@ public class UserController {
             }
             if (e.getMessage().equals("Password lama salah")) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            }
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/account")
+    public ResponseEntity<?> deleteAccount(
+            @Valid @RequestBody DeleteAccountRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            User currentUser = getAuthenticatedUser(authHeader);
+
+            LoginRequest loginReq = new LoginRequest();
+            loginReq.setIdentifier(currentUser.getEmail());
+            loginReq.setPassword(request.getPassword());
+            try {
+                authService.login(loginReq);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Password salah");
+            }
+
+            authService.deleteUserFromSupabase(currentUser.getId().toString());
+
+            userService.deleteUser(currentUser.getId());
+
+            return ResponseEntity.ok(Map.of("message", "Akun berhasil dihapus"));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().equals("Unauthorized") || e.getMessage().contains("tidak valid"))) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ditemukan");
             }
             return ResponseEntity.badRequest().body(e.getMessage());
         }
