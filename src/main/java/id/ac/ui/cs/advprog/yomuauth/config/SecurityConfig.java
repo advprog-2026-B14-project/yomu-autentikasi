@@ -19,6 +19,7 @@ public class SecurityConfig {
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
+    @SuppressWarnings("java:S4502") // CSRF dinonaktifkan dengan sengaja: REST API stateless menggunakan JWT, tidak ada session cookie
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // CSRF dinonaktifkan karena aplikasi ini adalah REST API stateless yang menggunakan JWT.
