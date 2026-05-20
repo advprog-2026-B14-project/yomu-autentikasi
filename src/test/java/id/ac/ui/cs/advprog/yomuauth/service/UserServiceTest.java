@@ -26,7 +26,6 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @InjectMocks
     private UserService userService;
 
     private UUID userId;
@@ -41,6 +40,8 @@ class UserServiceTest {
         user.setFullName("Test User");
         user.setUsername("testuser");
         user.setRole("USER");
+
+        userService = new UserServiceImpl(userRepository);
     }
 
     @Test

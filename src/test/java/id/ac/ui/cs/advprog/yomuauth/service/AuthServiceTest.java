@@ -32,7 +32,6 @@ class AuthServiceTest {
     @Mock
     private RestTemplate restTemplate;
 
-    @InjectMocks
     private AuthService authService;
 
     private final String supabaseUrl = "https://example.supabase.co";
@@ -41,12 +40,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Inject values for properties annotated with @Value
-        ReflectionTestUtils.setField(authService, "supabaseUrl", supabaseUrl);
-        ReflectionTestUtils.setField(authService, "supabaseKey", supabaseKey);
-        ReflectionTestUtils.setField(authService, "supabaseServiceKey", supabaseServiceKey);
-        // Replace final restTemplate initialized in constructor with mocked RestTemplate
-        ReflectionTestUtils.setField(authService, "restTemplate", restTemplate);
+        authService = new AuthServiceImpl(userRepository, restTemplate, supabaseUrl, supabaseKey, supabaseServiceKey);
     }
 
     @Test
