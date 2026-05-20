@@ -2,23 +2,20 @@ name: Scorecard supply-chain security
 
 on:
   push:
-    branches:
-      - main
-      - staging
+    branches: [ "main", "staging" ]
   pull_request:
-    branches:
-      - main
-      - staging
+    branches: [ "main", "staging" ]
   schedule:
     - cron: "17 11 * * 3"
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   analysis:
     name: Scorecard analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     permissions:
       security-events: write
