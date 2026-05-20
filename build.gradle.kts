@@ -42,6 +42,7 @@ dependencies {
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     annotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("com.h2database:h2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.seleniumhq.selenium:selenium-java:$seleniumJavaVersion")
     testImplementation("io.github.bonigarcia:selenium-jupiter:$seleniumJupiterVersion")
@@ -51,6 +52,7 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("spring.profiles.active", "test")
     filter {
         excludeTestsMatching("*FunctionalTest")
     }
@@ -70,6 +72,7 @@ tasks.register<Test>("functionalTest") {
     description = "Runs functional tests"
     group = "verification"
     useJUnitPlatform()
+    systemProperty("spring.profiles.active", "test")
     filter {
         includeTestsMatching("*FunctionalTest")
     }
