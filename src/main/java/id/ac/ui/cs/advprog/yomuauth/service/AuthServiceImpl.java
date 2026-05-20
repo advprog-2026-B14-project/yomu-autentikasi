@@ -69,7 +69,7 @@ public class AuthServiceImpl implements AuthService {
                 if (userMap == null) {
                     logger.warn(
                             "Registrasi gagal karena userMap null untuk email: {}",
-                            request.getEmail()
+                            request.getEmail().replaceAll("[\n\r\t]", "_")
                     );
                     throw new RuntimeException(
                             "Registrasi gagal. Email mungkin sudah terdaftar."
@@ -87,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
 
                 logger.info(
                         "User berhasil registrasi dengan email: {}",
-                        request.getEmail()
+                        request.getEmail().replaceAll("[\n\r\t]", "_")
                 );
 
                 return userRepository.save(user);
@@ -95,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
 
             logger.error(
                     "Respons tidak valid dari Supabase saat registrasi email: {}",
-                    request.getEmail()
+                    request.getEmail().replaceAll("[\n\r\t]", "_")
             );
 
             throw new RuntimeException(
