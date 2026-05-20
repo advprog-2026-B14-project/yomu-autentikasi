@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.yomuauth.service;
 
+import id.ac.ui.cs.advprog.yomuauth.client.SupabaseClient;
 import id.ac.ui.cs.advprog.yomuauth.dto.LoginRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
@@ -7,10 +8,7 @@ import id.ac.ui.cs.advprog.yomuauth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,99 +20,65 @@ public class AuthServiceImpl implements AuthService {
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private final UserRepository userRepository;
-    private final RestTemplate restTemplate;
-    private final String supabaseUrl;
-    private final String supabaseKey;
-    private final String supabaseServiceKey;
+    private final SupabaseClient supabaseClient;
 
     @Autowired
-    public AuthServiceImpl(
-            UserRepository userRepository,
-            RestTemplate restTemplate,
-            @Value("${supabase.url}") String supabaseUrl,
-            @Value("${supabase.anon.key}") String supabaseKey,
-            @Value("${supabase.service.key}") String supabaseServiceKey) {
+    public AuthServiceImpl(UserRepository userRepository, SupabaseClient supabaseClient) {
         this.userRepository = userRepository;
-        this.restTemplate = restTemplate;
-        this.supabaseUrl = supabaseUrl;
-        this.supabaseKey = supabaseKey;
-        this.supabaseServiceKey = supabaseServiceKey;
+        this.supabaseClient = supabaseClient;
     }
 
     @Override
     public User register(RegisterRequest request) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("apikey", supabaseKey);
-        headers.set("Authorization", "Bearer " + supabaseKey);
-
-        Map<String, Object> supabaseBody = new HashMap<>();
-        supabaseBody.put("email", request.getEmail());
-        supabaseBody.put("password", request.getPassword());
-
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put("full_name", request.getFullName());
-        metadata.put("username", request.getUsername());
-        supabaseBody.put("data", metadata);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(supabaseBody, headers);
-
         try {
-            String url = supabaseUrl + "/auth/v1/signup";
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("full_name", request.getFullName());
+            metadata.put("username", request.getUsername());
 
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> userMap = (Map<String, Object>) response.getBody().get("user");
+            Map<String, Object> response = supabaseClient.signup(request.getEmail(), request.getPassword(), metadata);
+            Map<String, Object> userMap = (Map<String, Object>) response.get("user");
 
-                if (userMap == null) {
-                    logger.warn(
-                            "Registrasi gagal karena userMap null untuk email: {}",
-                            request.getEmail().replaceAll("[\n\r\t]", "_")
-                    );
-                    throw new RuntimeException(
-                            "Registrasi gagal. Email mungkin sudah terdaftar."
-                    );
-                }
-
-                String supabaseId = (String) userMap.get("id");
-
-                User user = new User();
-                user.setId(UUID.fromString(supabaseId));
-                user.setEmail(request.getEmail());
-                user.setFullName(request.getFullName());
-                user.setUsername(request.getUsername());
-                user.setRole("USER");
-
-                logger.info(
-                        "User berhasil registrasi dengan email: {}",
+            if (userMap == null) {
+                logger.warn(
+                        "Registrasi gagal karena userMap null untuk email: {}",
                         request.getEmail().replaceAll("[\n\r\t]", "_")
                 );
-
-                return userRepository.save(user);
+                throw new RuntimeException("Registrasi gagal. Email mungkin sudah terdaftar.");
             }
 
-            logger.error(
-                    "Respons tidak valid dari Supabase saat registrasi email: {}",
+            String supabaseId = (String) userMap.get("id");
+
+            User user = new User();
+            user.setId(UUID.fromString(supabaseId));
+            user.setEmail(request.getEmail());
+            user.setFullName(request.getFullName());
+            user.setUsername(request.getUsername());
+            user.setRole("USER");
+
+            logger.info(
+                    "User berhasil registrasi dengan email: {}",
                     request.getEmail().replaceAll("[\n\r\t]", "_")
             );
 
-            throw new RuntimeException(
-                    "Registrasi gagal: respons tidak valid dari Supabase"
-            );
+            return userRepository.save(user);
 
         } catch (Exception e) {
             logger.error("Error saat registrasi user", e);
+            if (e.getMessage() != null && e.getMessage().contains("mungkin sudah terdaftar")) {
+                throw new RuntimeException("Registrasi gagal. Email mungkin sudah terdaftar.");
+            } else if (e.getMessage() != null && e.getMessage().contains("respons tidak valid dari Supabase")) {
+                logger.error(
+                        "Respons tidak valid dari Supabase saat registrasi email: {}",
+                        request.getEmail().replaceAll("[\n\r\t]", "_")
+                );
+                throw new RuntimeException("Registrasi gagal: respons tidak valid dari Supabase");
+            }
             throw new RuntimeException("Gagal daftar ke Supabase: " + e.getMessage());
         }
     }
 
     @Override
     public Map<String, Object> login(LoginRequest request) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("apikey", supabaseKey);
-        headers.set("Authorization", "Bearer " + supabaseKey);
-
         String emailToUse = request.getIdentifier();
         if (!emailToUse.contains("@")) {
             User user = userRepository.findByUsername(emailToUse)
@@ -122,17 +86,8 @@ public class AuthServiceImpl implements AuthService {
             emailToUse = user.getEmail();
         }
 
-        Map<String, String> body = new HashMap<>();
-        body.put("email", emailToUse);
-        body.put("password", request.getPassword());
-
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
-
-        String url = supabaseUrl + "/auth/v1/token?grant_type=password";
-
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            return response.getBody();
+            return supabaseClient.loginWithPassword(emailToUse, request.getPassword());
         } catch (Exception e) {
             throw new RuntimeException("Login gagal: Kredensial tidak valid.");
         }
@@ -140,46 +95,20 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public User verifyTokenAndGetUser(String token) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("apikey", supabaseServiceKey);
-        headers.set("Authorization", "Bearer " + token);
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    supabaseUrl + "/auth/v1/user",
-                    HttpMethod.GET,
-                    entity,
-                    Map.class
-            );
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String supabaseId = (String) response.getBody().get("id");
-                return userRepository.findById(UUID.fromString(supabaseId))
-                        .orElseThrow(() -> new RuntimeException("User tidak ditemukan di DB lokal"));
-            }
+            Map<String, Object> response = supabaseClient.getUser(token);
+            String supabaseId = (String) response.get("id");
+            return userRepository.findById(UUID.fromString(supabaseId))
+                    .orElseThrow(() -> new RuntimeException("User tidak ditemukan di DB lokal"));
         } catch (Exception e) {
             throw new RuntimeException("Token tidak valid");
         }
-        throw new RuntimeException("Token tidak valid");
     }
 
     @Override
     public void deleteUser(UUID id) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("apikey", supabaseServiceKey);
-        headers.set("Authorization", "Bearer " + supabaseServiceKey);
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
         try {
-            restTemplate.exchange(
-                    supabaseUrl + "/auth/v1/admin/users/" + id.toString(),
-                    HttpMethod.DELETE,
-                    entity,
-                    Map.class
-            );
+            supabaseClient.deleteUser(id);
         } catch (Exception e) {
             throw new RuntimeException("Gagal hapus user dari Supabase: " + e.getMessage());
         }
@@ -195,15 +124,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String token) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("apikey", supabaseKey);
-        headers.set("Authorization", "Bearer " + token);
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        String url = supabaseUrl + "/auth/v1/logout";
-
         try {
-            restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
+            supabaseClient.logout(token);
         } catch (Exception e) {
             throw new RuntimeException("Logout gagal: " + e.getMessage());
         }
@@ -211,32 +133,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void changePassword(User user, String oldPassword, String newPassword, String token) {
-        LoginRequest loginReq = new LoginRequest();
-        loginReq.setIdentifier(user.getEmail());
-        loginReq.setPassword(oldPassword);
-
         try {
-            login(loginReq);
+            supabaseClient.loginWithPassword(user.getEmail(), oldPassword);
         } catch (Exception e) {
             throw new RuntimeException("Password lama salah");
         }
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("apikey", supabaseKey);
-        headers.set("Authorization", "Bearer " + token);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, String> body = new HashMap<>();
-        body.put("password", newPassword);
-
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
-        String url = supabaseUrl + "/auth/v1/user";
-
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new RuntimeException("Gagal mengubah password di Supabase");
-            }
+            supabaseClient.updatePassword(newPassword, token);
         } catch (Exception e) {
             throw new RuntimeException("Gagal mengubah password: " + e.getMessage());
         }
