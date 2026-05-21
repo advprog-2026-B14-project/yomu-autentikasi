@@ -107,14 +107,20 @@ class UserControllerTest {
     }
 
     @Test
-    void testGetProfile_Forbidden_NotOwnerOrAdmin() throws Exception {
+    void testGetProfile_Success_OtherUser() throws Exception {
         UUID otherUserId = UUID.randomUUID();
 
-        mockMvc.perform(get("/user/" + otherUserId))
-                .andExpect(status().isForbidden())
-                .andExpect(content().string("Akses ditolak: Anda bukan pemilik profil ini"));
+        User otherUser = new User();
+        otherUser.setId(otherUserId);
+        otherUser.setEmail("other@example.com");
 
-        verify(userService, never()).getUserById(any(UUID.class));
+        when(userService.getUserById(otherUserId)).thenReturn(otherUser);
+
+        mockMvc.perform(get("/user/" + otherUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("other@example.com"));
+
+        verify(userService, times(1)).getUserById(otherUserId);
     }
 
     @Test

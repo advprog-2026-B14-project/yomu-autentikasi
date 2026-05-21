@@ -35,10 +35,6 @@ public class UserController {
             @PathVariable UUID id,
             @AuthenticationPrincipal User currentUser) {
         try {
-            if (!currentUser.getId().equals(id) && !"ADMIN".equals(currentUser.getRole())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Akses ditolak: Anda bukan pemilik profil ini");
-            }
-
             User user = userService.getUserById(id);
             return ResponseEntity.ok(new UserResponse(user));
         } catch (RuntimeException e) {
