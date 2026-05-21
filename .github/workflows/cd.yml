@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to AWS EC2
+    name: Deploy to AWS EC2 via ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -30,35 +30,62 @@ jobs:
       - name: Build JAR with Gradle
         run: ./gradlew clean bootJar -x test
 
-      - name: Copy JAR and Dockerfile to EC2
-        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "build/libs/*.jar,Dockerfile"
-          target: "~/yomu-autentikasi"
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Build and Run Docker on EC2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,AWS_REGION,ECR_REGISTRY,ECR_REPOSITORY
           script: |
             set +H
 
-            cd ~/yomu-autentikasi
+            echo "Configuring AWS CLI on EC2..."
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set aws_session_token $AWS_SESSION_TOKEN
+            aws configure set default.region $AWS_REGION
+
+            echo "Logging in to Amazon ECR..."
+            aws ecr get-login-password --region $AWS_REGION | sudo docker login --username AWS --password-stdin $ECR_REGISTRY
 
             echo "Stopping old container..."
             sudo docker stop yomu-autentikasi || true
             sudo docker rm yomu-autentikasi || true
 
             echo "Removing old image..."
-            sudo docker rmi yomu-autentikasi:latest || true
+            sudo docker rmi $ECR_REGISTRY/$ECR_REPOSITORY:latest || true
 
-            echo "Building new Docker image..."
-            sudo docker build -t yomu-autentikasi:latest .
+            echo "Pulling new image from ECR..."
+            sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
             echo "Running new container..."
             sudo docker run -d \
@@ -71,6 +98,6 @@ jobs:
               -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
               -e SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
               --restart unless-stopped \
-              yomu-autentikasi:latest
+              $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
             echo "Deployment completed successfully!"
