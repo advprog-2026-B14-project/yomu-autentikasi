@@ -29,6 +29,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll() // Bebas akses (login, register)
+                .requestMatchers("/actuator/**").permitAll() // Bebas akses untuk monitoring (Prometheus dll)
                 .requestMatchers("/admin/**").hasRole("ADMIN") // Khusus Admin
                 .requestMatchers("/user/**").authenticated() // Harus login
                 .anyRequest().authenticated()
