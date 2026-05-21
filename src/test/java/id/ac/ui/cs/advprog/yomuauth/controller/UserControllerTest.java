@@ -132,6 +132,30 @@ class UserControllerTest {
     }
 
     @Test
+    void testGetProfileByUsername_Success() throws Exception {
+        User user = new User();
+        user.setId(currentUserId);
+        user.setUsername("currentuser");
+        user.setEmail("current@example.com");
+
+        when(userService.getUserByUsername("currentuser")).thenReturn(user);
+
+        mockMvc.perform(get("/user/username/currentuser"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("currentuser"));
+
+        verify(userService, times(1)).getUserByUsername("currentuser");
+    }
+
+    @Test
+    void testGetProfileByUsername_NotFound() throws Exception {
+        when(userService.getUserByUsername("unknown")).thenThrow(new RuntimeException("User tidak ditemukan"));
+
+        mockMvc.perform(get("/user/username/unknown"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void testUpdateProfile_Success_Owner() throws Exception {
         UpdateProfileRequest request = new UpdateProfileRequest();
         request.setFullName("New Name");

@@ -218,4 +218,27 @@ class UserServiceTest {
         assertEquals(user, result.getContent().get(0));
         verify(userRepository, times(1)).findAll(pageRequest);
     }
+
+    @Test
+    void testGetUserByUsername_Success() {
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+
+        User result = userService.getUserByUsername("testuser");
+
+        assertNotNull(result);
+        assertEquals("testuser", result.getUsername());
+        verify(userRepository, times(1)).findByUsername("testuser");
+    }
+
+    @Test
+    void testGetUserByUsername_UserNotFound() {
+        when(userRepository.findByUsername("unknownuser")).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            userService.getUserByUsername("unknownuser");
+        });
+
+        assertEquals("User tidak ditemukan", exception.getMessage());
+        verify(userRepository, times(1)).findByUsername("unknownuser");
+    }
 }

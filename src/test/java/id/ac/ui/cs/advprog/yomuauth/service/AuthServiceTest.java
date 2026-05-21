@@ -329,4 +329,63 @@ class AuthServiceTest {
 
         assertTrue(exception.getMessage().contains("Gagal mengubah password"));
     }
+
+    @Test
+    void testSyncOAuthUser_ExistingUser() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "oauth@example.com");
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+
+        User existingUser = new User();
+        existingUser.setId(supabaseId);
+        existingUser.setEmail("oauth@example.com");
+
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.of(existingUser));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        assertNotNull(result);
+        assertEquals(token, result.get("access_token"));
+        assertEquals(existingUser, result.get("user"));
+        
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testSyncOAuthUser_NewUser() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "newuser@example.com");
+        
+        Map<String, Object> userMetadata = new HashMap<>();
+        userMetadata.put("full_name", "New User");
+        responseBody.put("user_metadata", userMetadata);
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("newuser")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        assertNotNull(result);
+        assertEquals(token, result.get("access_token"));
+        
+        User savedUser = (User) result.get("user");
+        assertNotNull(savedUser);
+        assertEquals(supabaseId, savedUser.getId());
+        assertEquals("newuser@example.com", savedUser.getEmail());
+        assertEquals("New User", savedUser.getFullName());
+        assertEquals("newuser", savedUser.getUsername());
+        
+        verify(userRepository, times(1)).save(any(User.class));
+    }
 }

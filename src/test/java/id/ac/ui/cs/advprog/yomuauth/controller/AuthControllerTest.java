@@ -219,4 +219,38 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Logout failed"));
     }
+
+    @Test
+    void testSyncOAuthUser_Success() throws Exception {
+        Map<String, Object> response = new HashMap<>();
+        response.put("access_token", "oauth-token");
+
+        when(authService.syncOAuthUser("oauth-token")).thenReturn(response);
+
+        mockMvc.perform(post("/auth/oauth")
+                        .header("Authorization", "Bearer oauth-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access_token").value("oauth-token"));
+
+        verify(authService, times(1)).syncOAuthUser("oauth-token");
+    }
+
+    @Test
+    void testSyncOAuthUser_MissingToken() throws Exception {
+        mockMvc.perform(post("/auth/oauth"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Token tidak ditemukan"));
+
+        verify(authService, never()).syncOAuthUser(anyString());
+    }
+
+    @Test
+    void testSyncOAuthUser_Failure() throws Exception {
+        when(authService.syncOAuthUser("invalid-token")).thenThrow(new RuntimeException("Gagal sinkronisasi user OAuth"));
+
+        mockMvc.perform(post("/auth/oauth")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Gagal sinkronisasi user OAuth"));
+    }
 }
