@@ -42,6 +42,18 @@ public class UserController {
         }
     }
 
+    @GetMapping("/username/{username}")
+    public ResponseEntity<?> getProfileByUsername(
+            @PathVariable String username,
+            @AuthenticationPrincipal User currentUser) {
+        try {
+            User user = userService.getUserByUsername(username);
+            return ResponseEntity.ok(new UserResponse(user));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PatchMapping("/profile/{id}")
     public ResponseEntity<?> updateProfile(
             @PathVariable UUID id,
