@@ -145,4 +145,55 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Gagal mengubah password: " + e.getMessage());
         }
     }
+
+    @Override
+    public Map<String, Object> syncOAuthUser(String token) {
+        try {
+            Map<String, Object> response = supabaseClient.getUser(token);
+            String supabaseId = (String) response.get("id");
+            String email = (String) response.get("email");
+
+            User user = userRepository.findById(UUID.fromString(supabaseId)).orElse(null);
+
+            if (user == null) {
+                user = new User();
+                user.setId(UUID.fromString(supabaseId));
+                user.setEmail(email);
+
+                Map<String, Object> userMetadata = (Map<String, Object>) response.get("user_metadata");
+                if (userMetadata == null) {
+                    userMetadata = (Map<String, Object>) response.get("raw_user_meta_data");
+                }
+
+                String fullName = email;
+                if (userMetadata != null && userMetadata.get("full_name") != null) {
+                    fullName = (String) userMetadata.get("full_name");
+                } else if (userMetadata != null && userMetadata.get("name") != null) {
+                    fullName = (String) userMetadata.get("name");
+                }
+                user.setFullName(fullName);
+
+                String username = email.split("@")[0];
+                int suffix = 1;
+                String baseUsername = username;
+                while (userRepository.findByUsername(username).isPresent()) {
+                    username = baseUsername + suffix;
+                    suffix++;
+                }
+                user.setUsername(username);
+                user.setRole("USER");
+
+                user = userRepository.save(user);
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("access_token", token);
+            result.put("user", user);
+
+            return result;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal sinkronisasi user OAuth: " + e.getMessage());
+        }
+    }
 }

@@ -79,4 +79,20 @@ public class AuthController {
             return ResponseEntity.status(400).body(e.getMessage());
         }
     }
+
+    @PostMapping("/oauth")
+    public ResponseEntity<?> syncOAuthUser(@RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(400).body("Token tidak ditemukan");
+            }
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+            Map<String, Object> response = authService.syncOAuthUser(token);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(e.getMessage());
+        }
+    }
 }
