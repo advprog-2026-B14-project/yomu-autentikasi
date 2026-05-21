@@ -35,11 +35,19 @@ public class UserController {
             @PathVariable UUID id,
             @AuthenticationPrincipal User currentUser) {
         try {
-            if (!currentUser.getId().equals(id) && !"ADMIN".equals(currentUser.getRole())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Akses ditolak: Anda bukan pemilik profil ini");
-            }
-
             User user = userService.getUserById(id);
+            return ResponseEntity.ok(new UserResponse(user));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/username/{username}")
+    public ResponseEntity<?> getProfileByUsername(
+            @PathVariable String username,
+            @AuthenticationPrincipal User currentUser) {
+        try {
+            User user = userService.getUserByUsername(username);
             return ResponseEntity.ok(new UserResponse(user));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

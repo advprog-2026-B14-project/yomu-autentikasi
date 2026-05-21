@@ -14,4 +14,5 @@ public interface AuthService {
     void deleteUser(UUID id);
     void logout(String token);
     void changePassword(User user, String oldPassword, String newPassword, String token);
+    Map<String, Object> syncOAuthUser(String token);
 }

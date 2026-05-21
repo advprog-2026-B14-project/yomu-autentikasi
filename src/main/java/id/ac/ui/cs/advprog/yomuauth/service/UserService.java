@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public interface UserService {
     User updateProfile(UUID id, UpdateProfileRequest request);
+    User getUserByUsername(String username);
     User getUserById(UUID id);
     void deleteUser(UUID id);
     User updateUserRole(UUID id, String role);

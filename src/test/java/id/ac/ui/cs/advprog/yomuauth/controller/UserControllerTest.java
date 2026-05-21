@@ -107,14 +107,20 @@ class UserControllerTest {
     }
 
     @Test
-    void testGetProfile_Forbidden_NotOwnerOrAdmin() throws Exception {
+    void testGetProfile_Success_OtherUser() throws Exception {
         UUID otherUserId = UUID.randomUUID();
 
-        mockMvc.perform(get("/user/" + otherUserId))
-                .andExpect(status().isForbidden())
-                .andExpect(content().string("Akses ditolak: Anda bukan pemilik profil ini"));
+        User otherUser = new User();
+        otherUser.setId(otherUserId);
+        otherUser.setEmail("other@example.com");
 
-        verify(userService, never()).getUserById(any(UUID.class));
+        when(userService.getUserById(otherUserId)).thenReturn(otherUser);
+
+        mockMvc.perform(get("/user/" + otherUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("other@example.com"));
+
+        verify(userService, times(1)).getUserById(otherUserId);
     }
 
     @Test
@@ -122,6 +128,30 @@ class UserControllerTest {
         when(userService.getUserById(currentUserId)).thenThrow(new RuntimeException("Not found"));
 
         mockMvc.perform(get("/user/" + currentUserId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testGetProfileByUsername_Success() throws Exception {
+        User user = new User();
+        user.setId(currentUserId);
+        user.setUsername("currentuser");
+        user.setEmail("current@example.com");
+
+        when(userService.getUserByUsername("currentuser")).thenReturn(user);
+
+        mockMvc.perform(get("/user/username/currentuser"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("currentuser"));
+
+        verify(userService, times(1)).getUserByUsername("currentuser");
+    }
+
+    @Test
+    void testGetProfileByUsername_NotFound() throws Exception {
+        when(userService.getUserByUsername("unknown")).thenThrow(new RuntimeException("User tidak ditemukan"));
+
+        mockMvc.perform(get("/user/username/unknown"))
                 .andExpect(status().isNotFound());
     }
 

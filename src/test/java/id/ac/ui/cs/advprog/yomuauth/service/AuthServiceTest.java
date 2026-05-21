@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.yomuauth.service;
 
+import id.ac.ui.cs.advprog.yomuauth.client.SupabaseClient;
 import id.ac.ui.cs.advprog.yomuauth.dto.LoginRequest;
 import id.ac.ui.cs.advprog.yomuauth.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.yomuauth.model.User;
@@ -10,9 +11,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.*;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,17 +28,14 @@ class AuthServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private RestTemplate restTemplate;
+    private SupabaseClient supabaseClient;
 
-    private AuthService authService;
-
-    private final String supabaseUrl = "https://example.supabase.co";
-    private final String supabaseKey = "dummy-anon-key";
-    private final String supabaseServiceKey = "dummy-service-key";
+    @InjectMocks
+    private AuthServiceImpl authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(userRepository, restTemplate, supabaseUrl, supabaseKey, supabaseServiceKey);
+        authService = new AuthServiceImpl(userRepository, supabaseClient);
     }
 
     @Test
@@ -58,13 +53,8 @@ class AuthServiceTest {
         userMap.put("id", generatedId.toString());
         responseBody.put("user", userMap);
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
-
-        when(restTemplate.postForEntity(
-                eq(supabaseUrl + "/auth/v1/signup"),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        when(supabaseClient.signup(eq("register@example.com"), eq("password123"), anyMap()))
+                .thenReturn(responseBody);
 
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -86,13 +76,9 @@ class AuthServiceTest {
         request.setEmail("register@example.com");
 
         Map<String, Object> responseBody = new HashMap<>(); // user is missing (null)
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
 
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        when(supabaseClient.signup(eq("register@example.com"), any(), anyMap()))
+                .thenReturn(responseBody);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.register(request);
@@ -107,19 +93,14 @@ class AuthServiceTest {
         RegisterRequest request = new RegisterRequest();
         request.setEmail("register@example.com");
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        when(supabaseClient.signup(anyString(), any(), anyMap()))
+                .thenThrow(new RuntimeException("Registrasi gagal: respons tidak valid dari Supabase"));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.register(request);
         });
 
-        assertTrue(exception.getMessage().contains("Gagal daftar ke Supabase"));
+        assertTrue(exception.getMessage().contains("respons tidak valid dari Supabase"));
     }
 
     @Test
@@ -132,13 +113,8 @@ class AuthServiceTest {
         responseBody.put("access_token", "dummy-jwt");
         responseBody.put("expires_in", 3600);
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
-
-        when(restTemplate.postForEntity(
-                eq(supabaseUrl + "/auth/v1/token?grant_type=password"),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        when(supabaseClient.loginWithPassword(eq("login@example.com"), eq("password123")))
+                .thenReturn(responseBody);
 
         Map<String, Object> result = authService.login(request);
 
@@ -160,14 +136,10 @@ class AuthServiceTest {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("access_token", "dummy-jwt");
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
-
         when(userRepository.findByUsername("loginuser")).thenReturn(Optional.of(user));
-        when(restTemplate.postForEntity(
-                eq(supabaseUrl + "/auth/v1/token?grant_type=password"),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        
+        when(supabaseClient.loginWithPassword(eq("login@example.com"), eq("password123")))
+                .thenReturn(responseBody);
 
         Map<String, Object> result = authService.login(request);
 
@@ -195,11 +167,8 @@ class AuthServiceTest {
         LoginRequest request = new LoginRequest();
         request.setIdentifier("login@example.com");
 
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenThrow(new RuntimeException("Bad Credentials"));
+        when(supabaseClient.loginWithPassword(anyString(), any()))
+                .thenThrow(new RuntimeException("Bad Credentials"));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.login(request);
@@ -216,14 +185,7 @@ class AuthServiceTest {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("id", supabaseId.toString());
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
-
-        when(restTemplate.exchange(
-                eq(supabaseUrl + "/auth/v1/user"),
-                eq(HttpMethod.GET),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
 
         User mockUser = new User();
         mockUser.setId(supabaseId);
@@ -245,15 +207,7 @@ class AuthServiceTest {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("id", supabaseId.toString());
 
-        ResponseEntity<Map> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
-
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.GET),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(responseEntity);
-
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
         when(userRepository.findById(supabaseId)).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
@@ -267,12 +221,7 @@ class AuthServiceTest {
     void testVerifyTokenAndGetUser_InvalidToken() {
         String token = "invalid-jwt";
 
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.GET),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenThrow(new RuntimeException("Unauthorized"));
+        when(supabaseClient.getUser(token)).thenThrow(new RuntimeException("Unauthorized"));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.verifyTokenAndGetUser(token);
@@ -285,13 +234,7 @@ class AuthServiceTest {
     void testDeleteUser_Success() {
         UUID id = UUID.randomUUID();
 
-        when(restTemplate.exchange(
-                eq(supabaseUrl + "/auth/v1/admin/users/" + id.toString()),
-                eq(HttpMethod.DELETE),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(new ResponseEntity<>(HttpStatus.OK));
-
+        doNothing().when(supabaseClient).deleteUser(id);
         when(userRepository.existsById(id)).thenReturn(true);
         doNothing().when(userRepository).deleteById(id);
 
@@ -305,12 +248,7 @@ class AuthServiceTest {
     void testDeleteUser_SupabaseFailure() {
         UUID id = UUID.randomUUID();
 
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.DELETE),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenThrow(new RuntimeException("API error"));
+        doThrow(new RuntimeException("API error")).when(supabaseClient).deleteUser(id);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.deleteUser(id);
@@ -324,12 +262,7 @@ class AuthServiceTest {
     void testLogout_Success() {
         String token = "token";
 
-        when(restTemplate.exchange(
-                eq(supabaseUrl + "/auth/v1/logout"),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                eq(Void.class)
-        )).thenReturn(new ResponseEntity<>(HttpStatus.NO_CONTENT));
+        doNothing().when(supabaseClient).logout(token);
 
         assertDoesNotThrow(() -> authService.logout(token));
     }
@@ -338,12 +271,7 @@ class AuthServiceTest {
     void testLogout_Failure() {
         String token = "token";
 
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                eq(Void.class)
-        )).thenThrow(new RuntimeException("Failed"));
+        doThrow(new RuntimeException("Failed")).when(supabaseClient).logout(token);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.logout(token);
@@ -361,23 +289,10 @@ class AuthServiceTest {
         String newPassword = "new";
         String token = "token";
 
-        // Mock the internal login call inside changePassword (which uses login)
-        Map<String, Object> loginResponse = new HashMap<>();
-        ResponseEntity<Map> loginResponseEntity = new ResponseEntity<>(loginResponse, HttpStatus.OK);
-        when(restTemplate.postForEntity(
-                eq(supabaseUrl + "/auth/v1/token?grant_type=password"),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(loginResponseEntity);
-
-        // Mock the PUT call to update password
-        ResponseEntity<Map> updateResponseEntity = new ResponseEntity<>(new HashMap<>(), HttpStatus.OK);
-        when(restTemplate.exchange(
-                eq(supabaseUrl + "/auth/v1/user"),
-                eq(HttpMethod.PUT),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(updateResponseEntity);
+        when(supabaseClient.loginWithPassword(eq("user@example.com"), eq("old")))
+                .thenReturn(new HashMap<>());
+                
+        doNothing().when(supabaseClient).updatePassword(eq("new"), eq("token"));
 
         assertDoesNotThrow(() -> authService.changePassword(mockUser, oldPassword, newPassword, token));
     }
@@ -387,18 +302,15 @@ class AuthServiceTest {
         User mockUser = new User();
         mockUser.setEmail("user@example.com");
 
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenThrow(new RuntimeException("Wrong password"));
+        when(supabaseClient.loginWithPassword(anyString(), anyString()))
+                .thenThrow(new RuntimeException("Wrong password"));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.changePassword(mockUser, "wrong", "new", "token");
         });
 
         assertEquals("Password lama salah", exception.getMessage());
-        verify(restTemplate, never()).exchange(anyString(), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Map.class));
+        verify(supabaseClient, never()).updatePassword(anyString(), anyString());
     }
 
     @Test
@@ -406,25 +318,74 @@ class AuthServiceTest {
         User mockUser = new User();
         mockUser.setEmail("user@example.com");
 
-        Map<String, Object> loginResponse = new HashMap<>();
-        ResponseEntity<Map> loginResponseEntity = new ResponseEntity<>(loginResponse, HttpStatus.OK);
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenReturn(loginResponseEntity);
+        when(supabaseClient.loginWithPassword(anyString(), anyString()))
+                .thenReturn(new HashMap<>());
 
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.PUT),
-                any(HttpEntity.class),
-                eq(Map.class)
-        )).thenThrow(new RuntimeException("Network error"));
+        doThrow(new RuntimeException("Network error")).when(supabaseClient).updatePassword(anyString(), anyString());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             authService.changePassword(mockUser, "old", "new", "token");
         });
 
         assertTrue(exception.getMessage().contains("Gagal mengubah password"));
+    }
+
+    @Test
+    void testSyncOAuthUser_ExistingUser() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "oauth@example.com");
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+
+        User existingUser = new User();
+        existingUser.setId(supabaseId);
+        existingUser.setEmail("oauth@example.com");
+
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.of(existingUser));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        assertNotNull(result);
+        assertEquals(token, result.get("access_token"));
+        assertEquals(existingUser, result.get("user"));
+        
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testSyncOAuthUser_NewUser() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "newuser@example.com");
+        
+        Map<String, Object> userMetadata = new HashMap<>();
+        userMetadata.put("full_name", "New User");
+        responseBody.put("user_metadata", userMetadata);
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("newuser")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        assertNotNull(result);
+        assertEquals(token, result.get("access_token"));
+        
+        User savedUser = (User) result.get("user");
+        assertNotNull(savedUser);
+        assertEquals(supabaseId, savedUser.getId());
+        assertEquals("newuser@example.com", savedUser.getEmail());
+        assertEquals("New User", savedUser.getFullName());
+        assertEquals("newuser", savedUser.getUsername());
+        
+        verify(userRepository, times(1)).save(any(User.class));
     }
 }
