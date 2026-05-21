@@ -1,154 +1,76 @@
-name: Continuous Deployment (CD)
+name: Continuous Deployment
 
-# Trigger CD only after CI workflow completes successfully
 on:
-  workflow_run:
-    workflows: ["Continuous Integration (CI)"]  # Must match the name in ci.yml
-    types:
-      - completed
+  push:
     branches:
-      - staging
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  # Job to check if CI was successful
-  check-ci-success:
-    name: Check CI Status
+  deploy:
+    name: Deploy to AWS EC2
     runs-on: ubuntu-latest
-    # Only run if the triggering workflow (CI) was successful
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    outputs:
-      branch: ${{ steps.extract-branch.outputs.branch }}
 
     steps:
-      - name: Extract branch name
-        id: extract-branch
-        run: |
-          echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
-          echo "CI completed successfully on branch: ${{ github.event.workflow_run.head_branch }}"
+      - name: Checkout Code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-  # Dummy deployment to STAGING environment
-  deploy-staging:
-    name: Deploy to Staging (Dummy)
-    runs-on: ubuntu-latest
-    needs: check-ci-success
-    # Only run if branch is 'staging'
-    if: ${{ github.event.workflow_run.head_branch == 'staging' }}
-    environment:
-      name: staging
-      url: https://staging.yomu-bacaan-dan-kuis.example.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
 
-      - name: Dummy Deployment - Staging
-        run: |
-          echo "========================================"
-          echo "🚀 Dummy Deployment: STAGING"
-          echo "========================================"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "Commit SHA: ${{ github.event.workflow_run.head_sha }}"
-          echo "Triggered by: ${{ github.event.workflow_run.triggering_actor.login }}"
-          echo "----------------------------------------"
-          echo "Simulating deployment steps:"
-          echo "  ✓ Building Docker image..."
-          sleep 2
-          echo "  ✓ Pushing to container registry..."
-          sleep 2
-          echo "  ✓ Deploying to staging environment..."
-          sleep 2
-          echo "  ✓ Running health checks..."
-          sleep 1
-          echo "----------------------------------------"
-          echo "✅ Deployment to STAGING completed successfully!"
-          echo "========================================"
+      - name: Grant execute permission for Gradle Wrapper
+        run: chmod +x ./gradlew
 
-      - name: Deployment Summary
-        run: |
-          echo "### 🎉 Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** Staging" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** \`${{ github.event.workflow_run.head_branch }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Success (Dummy)" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL:** https://staging.yomu-bacaan-dan-kuis.example.com" >> $GITHUB_STEP_SUMMARY
+      - name: Build JAR with Gradle
+        run: ./gradlew clean bootJar -x test
 
-  # Dummy deployment to PRODUCTION environment
-  deploy-production:
-    name: Deploy to Production (Dummy)
-    runs-on: ubuntu-latest
-    needs: check-ci-success
-    # Only run if branch is 'main'
-    if: ${{ github.event.workflow_run.head_branch == 'main' }}
-    environment:
-      name: production
-      url: https://yomu-bacaan-dan-kuis.example.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Copy JAR and Dockerfile to EC2
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "build/libs/*.jar,Dockerfile"
+          target: "~/yomu-autentikasi"
 
-      - name: Dummy Deployment - Production
-        run: |
-          echo "========================================"
-          echo "🚀 Dummy Deployment: PRODUCTION"
-          echo "========================================"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "Commit SHA: ${{ github.event.workflow_run.head_sha }}"
-          echo "Triggered by: ${{ github.event.workflow_run.triggering_actor.login }}"
-          echo "----------------------------------------"
-          echo "Simulating deployment steps:"
-          echo "  ✓ Building Docker image..."
-          sleep 2
-          echo "  ✓ Pushing to container registry..."
-          sleep 2
-          echo "  ✓ Creating backup of current production..."
-          sleep 2
-          echo "  ✓ Deploying to production environment..."
-          sleep 3
-          echo "  ✓ Running health checks..."
-          sleep 2
-          echo "  ✓ Running smoke tests..."
-          sleep 1
-          echo "----------------------------------------"
-          echo "✅ Deployment to PRODUCTION completed successfully!"
-          echo "========================================"
+      - name: Build and Run Docker on EC2
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set +H
 
-      - name: Deployment Summary
-        run: |
-          echo "### 🎉 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** \`${{ github.event.workflow_run.head_branch }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Success (Dummy)" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL:** https://yomu-bacaan-dan-kuis.example.com" >> $GITHUB_STEP_SUMMARY
+            cd ~/yomu-autentikasi
 
-  # Notification job (runs after deployment)
-  notify-deployment:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    needs: [check-ci-success, deploy-staging, deploy-production]
-    if: always()
+            echo "Stopping old container..."
+            sudo docker stop yomu-autentikasi || true
+            sudo docker rm yomu-autentikasi || true
 
-    steps:
-      - name: Deployment Notification
-        run: |
-          echo "========================================"
-          echo "📢 Deployment Notification"
-          echo "========================================"
-          if [[ "${{ needs.deploy-staging.result }}" == "success" ]]; then
-            echo "✅ Staging deployment completed successfully"
-          elif [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
-            echo "✅ Production deployment completed successfully"
-          else
-            echo "ℹ️  No deployment was triggered (branch condition not met)"
-          fi
-          echo "========================================"
+            echo "Removing old image..."
+            sudo docker rmi yomu-autentikasi:latest || true
+
+            echo "Building new Docker image..."
+            sudo docker build -t yomu-autentikasi:latest .
+
+            echo "Running new container..."
+            sudo docker run -d \
+              --name yomu-autentikasi \
+              -p 8081:8081 \
+              -e DB_URL="${{ secrets.DB_URL }}" \
+              -e DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+              -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+              -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
+              -e SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
+              --restart unless-stopped \
+              yomu-autentikasi:latest
+
+            echo "Deployment completed successfully!"
