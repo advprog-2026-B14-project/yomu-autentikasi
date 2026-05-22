@@ -388,4 +388,79 @@ class AuthServiceTest {
         
         verify(userRepository, times(1)).save(any(User.class));
     }
+
+    @Test
+    void testRegister_Failure_NullMessage() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("register@example.com");
+
+        when(supabaseClient.signup(anyString(), any(), anyMap()))
+                .thenThrow(new NullPointerException()); 
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            authService.register(request);
+        });
+
+        assertTrue(exception.getMessage().contains("Gagal daftar ke Supabase"));
+    }
+
+    @Test
+    void testSyncOAuthUser_NewUser_NameAndCollision() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "newuser@example.com");
+        
+        Map<String, Object> userMetadata = new HashMap<>();
+        userMetadata.put("name", "Name From Meta");
+        responseBody.put("raw_user_meta_data", userMetadata); 
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.empty());
+        
+        when(userRepository.findByUsername("newuser")).thenReturn(Optional.of(new User()));
+        when(userRepository.findByUsername("newuser1")).thenReturn(Optional.empty());
+        
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        User savedUser = (User) result.get("user");
+        assertEquals("Name From Meta", savedUser.getFullName());
+        assertEquals("newuser1", savedUser.getUsername());
+    }
+
+    @Test
+    void testSyncOAuthUser_NewUser_NoMetadata() {
+        String token = "oauth-token";
+        UUID supabaseId = UUID.randomUUID();
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", supabaseId.toString());
+        responseBody.put("email", "nometa@example.com");
+
+        when(supabaseClient.getUser(token)).thenReturn(responseBody);
+        when(userRepository.findById(supabaseId)).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("nometa")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> result = authService.syncOAuthUser(token);
+
+        User savedUser = (User) result.get("user");
+        assertEquals("nometa@example.com", savedUser.getFullName());
+        assertEquals("nometa", savedUser.getUsername());
+    }
+
+    @Test
+    void testSyncOAuthUser_Exception() {
+        when(supabaseClient.getUser(anyString())).thenThrow(new RuntimeException("API error"));
+        
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            authService.syncOAuthUser("token");
+        });
+        
+        assertTrue(exception.getMessage().contains("Gagal sinkronisasi user OAuth"));
+    }
 }

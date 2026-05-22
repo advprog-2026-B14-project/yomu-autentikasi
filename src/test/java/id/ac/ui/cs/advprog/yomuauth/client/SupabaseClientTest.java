@@ -170,4 +170,45 @@ class SupabaseClientTest {
 
         assertThrows(RuntimeException.class, () -> supabaseClient.updatePassword("newpass", "token"));
     }
+
+    @Test
+    void testSignup_Failure_NullBody() {
+        ResponseEntity<Map> responseEntity = new ResponseEntity<>(null, HttpStatus.OK);
+
+        when(restTemplate.postForEntity(
+                anyString(),
+                any(HttpEntity.class),
+                eq(Map.class)
+        )).thenReturn(responseEntity);
+
+        assertThrows(RuntimeException.class, () -> supabaseClient.signup("test@example.com", "password", new HashMap<>()));
+    }
+
+    @Test
+    void testGetUser_Failure_BadStatus() {
+        ResponseEntity<Map> responseEntity = new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+
+        when(restTemplate.exchange(
+                eq(supabaseUrl + "/auth/v1/user"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(Map.class)
+        )).thenReturn(responseEntity);
+
+        assertThrows(RuntimeException.class, () -> supabaseClient.getUser("token"));
+    }
+
+    @Test
+    void testGetUser_Failure_NullBody() {
+        ResponseEntity<Map> responseEntity = new ResponseEntity<>(null, HttpStatus.OK);
+
+        when(restTemplate.exchange(
+                eq(supabaseUrl + "/auth/v1/user"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(Map.class)
+        )).thenReturn(responseEntity);
+
+        assertThrows(RuntimeException.class, () -> supabaseClient.getUser("token"));
+    }
 }
