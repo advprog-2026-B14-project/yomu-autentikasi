@@ -75,6 +75,8 @@ tasks.register<Test>("functionalTest") {
     group = "verification"
     useJUnitPlatform()
     systemProperty("spring.profiles.active", "test")
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
     filter {
         includeTestsMatching("*FunctionalTest")
     }

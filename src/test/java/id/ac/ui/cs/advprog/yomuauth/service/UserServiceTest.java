@@ -241,4 +241,21 @@ class UserServiceTest {
         assertEquals("User tidak ditemukan", exception.getMessage());
         verify(userRepository, times(1)).findByUsername("unknownuser");
     }
+
+    @Test
+    void testUpdateProfile_Success_OnlyFullName() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setFullName("Only FullName");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.updateProfile(userId, request);
+
+        assertNotNull(result);
+        assertEquals("Only FullName", result.getFullName());
+        assertEquals("testuser", result.getUsername());
+        verify(userRepository, never()).findByUsername(anyString());
+        verify(userRepository, times(1)).save(user);
+    }
 }
